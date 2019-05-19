@@ -1,0 +1,75 @@
+import argparse
+import os
+import json
+import time
+import logging
+import paho.mqtt.client as mqtt
+logger = logging.getLogger()
+logger.addHandler(logging.StreamHandler())
+logger.setLevel(logging.INFO)
+
+
+# The callback for when the client receives a CONNACK response from the server.
+def on_connect(topics):
+    def on_connect(client, userdata, flags, rc):
+        logger.debug("Connected with result code " + str(rc))
+        # Subscribing in on_connect() means that if we lose the connection and
+        # reconnect then subscriptions will be renewed.
+        for topic in topics:
+            client.subscribe(topic)
+    return on_connect
+
+# The callback for when a PUBLISH message is received from the server.
+
+
+def on_message(client, userdata, msg):
+    logger.debug(msg.topic + " " + str(msg.payload))
+    userdata[msg.topic] = str(msg.payload, 'utf-8')
+
+
+def on_disconnect(client, userdata, rc):
+    print(json.dumps(userdata))
+
+
+if __name__ == "__main__":
+
+    def environ_or_required(key, default=None):
+        if os.environ.get(key):
+            return {'default': os.environ.get(key)}
+        elif default:
+            return {'default': default}
+        else:
+            return {'required': True}
+
+    parser = argparse.ArgumentParser(
+        description="MQTT to Zabbix. Provide topic to subscribe. Returns JSON")
+    parser.add_argument('--mqtt-host', help="MQTT broker host",
+                        **environ_or_required('MQTT_HOST', '127.0.0.1'))
+    parser.add_argument(
+        '--mqtt-port', **environ_or_required('MQTT_PORT', 1883))
+    parser.add_argument('--topic', '-t', dest='topics', action='append', **environ_or_required('MQTT_TOPIC'))
+    parser.add_argument('--sleep', '-s', type=int, **
+                        environ_or_required('MQTT_SLEEP', 1))
+    parser.add_argument('--debug', dest='debug', action='store_true')
+    args = parser.parse_args()
+
+    if args.debug:
+        pass
+    logger.debug("Provided args: {}".format(args))
+
+    client = mqtt.Client(userdata={})
+    client.on_connect = on_connect(args.topics)
+    client.on_message = on_message
+    client.on_disconnect = on_disconnect
+    try:
+        client.connect(args.mqtt_host, args.mqtt_port, 60)
+        client.loop_start()  # starts network loop on separate thread
+        time.sleep(args.sleep)  # optionally wait some time
+    except TimeoutError:
+        print("Failed to connect to {}:{}".format(
+            args.mqtt_host, args.mqtt_port))
+    except KeyboardInterrupt:
+        pass
+    finally:
+        client.disconnect()  # disconnect gracefully
+        client.loop_stop()  # stops network loop
