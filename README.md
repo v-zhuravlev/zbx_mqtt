@@ -1,17 +1,17 @@
 # MQTT Zabbix integration
 
-This is MQTT <-> Zabbix integration tested with Wirenboard controllers. This solution uses dependent items, jsonpath and jsonpath validation.  
-Collects multiple MQTT topics at once. Topic wildcards can be used as well. So single call to the device/broker can be to collect everything you need.  
-Zabbix 4.2 is recommended ( where jsonpath validation is used to find out out-of-date values) and at least 3.4 for basic usage without validation.
+This is MQTT <-> Zabbix integration, tested with Wirenboard controllers. This solution uses dependent items, JSONPath preprocessing and JSONPath validation.  
+Collects multiple MQTT topics at once using topic wildcards like `#`. So single subscribe to the device/MQTT broker can be used to collect everything you need.  
+Zabbix 4.2 is recommended ( where JSONPath validation is used to ignore out out-of-date values) and at least 3.4 for the basic usage without validation.
 
 ## Setup with Wirenboard
 
 ### Zabbix server/proxy (externalscripts)
 
-`apt-get install python python-pip`
-`pip install paho-mqtt==1.2.3 --no-cache-dir`
-`cp mqtt /usr/lib/zabbix/externalscripts/`
-`chmod +x /usr/lib/zabbix/externalscripts/mqtt`
+`apt-get install python python-pip`  
+`pip install paho-mqtt==1.2.3 --no-cache-dir`  
+`cp mqtt /usr/lib/zabbix/externalscripts/`  
+`chmod +x /usr/lib/zabbix/externalscripts/mqtt`  
 
 ### Zabbix agent (userparameteres)
 
@@ -26,12 +26,11 @@ Note: If Debian Wheezy, remove all lines in `/etc/apt/sources.list` and add:
 
 ### Test by example
 
-In order to get WB-MS sensor data using wirenboard
+In order to get data from [WB-MS sensor](https://wirenboard.com/en/product/WB-MS/) data using wirenboard
 
 run:
 
-`mqtt -t '/devices/wb-ms-thls_25/#' --mqtt-host={HOST.CONN} -s 1`
-`mqtt -t '/devices/wb-ms-thls_25/#' --mqtt-host=<MQTT_BROKER_IP> -s 1`
+`./mqtt -t '/devices/wb-ms-thls_25/#' --mqtt-host=<MQTT_BROKER_IP> -s 1`
 
 If sucessful, you will get the output like this:
 
@@ -61,8 +60,36 @@ If sucessful, you will get the output like this:
 }
 ```
 
-Congratulations! You have just got a lot of MQTT topics with single call and it us wrapped in JSON now. You can proceed to building Zabbix template.
+Congratulations! You have just got all of the topics available on WB-MS sensor with single MQTT subscribe and it is wrapped in JSON now. You can proceed to building Zabbix template.
 
 ### Zabbix template
 
+First, create master item. for example for WB-MS-THLS sensor:
 
+![image](https://user-images.githubusercontent.com/14870891/58502621-8e58c700-818f-11e9-8223-370aaa5f46b4.png)
+This item should have:  
+Type=External check  
+Key=`mqtt["-t=<topic with wildcard>","--mqtt-host=<ip address of mqtt broker>"]`  
+Type of information=Text  
+History storage period=1d
+
+Then, proceed with creating dependent items for each sensor value you are interested. For example, humidity:
+
+![image](https://user-images.githubusercontent.com/14870891/58510183-e1874580-81a0-11e9-9fe1-32b8091e4fec.png)
+Type=Dependent item  
+Master item=`<WB-MS-THLS get>`  - item from previous step  
+Key=doesn't really matter  
+And in preprocessing tab, apply two steps:  
+![image](https://user-images.githubusercontent.com/14870891/58510832-3d060300-81a2-11e9-97a5-eab5097a39d1.png)
+1. In wirenboard, you can check for value errors. For example if controller failed to collect requested value in time. For that use 'Check for error in JSON' step. It checks for `<value>/meta/error` topic. If this topic is present then there were problems collecting `<value>` and so further processing in zabbix is stopped. Value present on controller is ignored since it is unknown how long ago it was actually collected by wirenboard.  
+2. If there is no `<value>/meta/error` we can now use JSONPath preprocessing to get the actual `<value>` from MQTT topic.  
+
+Now create dependent items for other sensor data: temperature, sound, light. You will get something like this:  
+![image](https://user-images.githubusercontent.com/14870891/58502009-4be2ba80-818e-11e9-92de-524971b25c76.png)
+As you can see, all timestamps are synchronized as data is received simultaneously with single MQTT request.
+
+## References
+
+https://www.zabbix.com/documentation/current/manual/config/items/itemtypes/dependent_items  
+https://www.zabbix.com/documentation/current/manual/config/items/item#item_value_preprocessing  
+https://blog.zabbix.com/zabbix-3-4-mass-data-collection-using-mercury-and-smartmontools-as-an-example/5784/  
