@@ -60,7 +60,7 @@ If sucessful, you will get the output like this:
 }
 ```
 
-Congratulations! You have just got all of the topics available on WB-MS sensor with single MQTT subscribe and it is wrapped in JSON now. You can proceed to building Zabbix template.
+Congratulations! You have just got all of the topics available on WB-MS sensor with single MQTT subscribe and data is wrapped in JSON now. In such form, it would be very easy to retrieve data in Zabbix using JSONPath. Let's proceed to building Zabbix template.
 
 ### Zabbix template
 
