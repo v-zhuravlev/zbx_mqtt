@@ -4,6 +4,8 @@ This is MQTT <-> Zabbix integration, tested with Wirenboard controllers. This so
 Collects multiple MQTT topics at once using topic wildcards like `#`. So single subscribe to the device/MQTT broker can be used to collect everything you need.  
 Zabbix 4.2 is recommended ( where JSONPath validation is used to ignore out out-of-date values) and at least 3.4 for the basic usage without validation.
 
+For Zabbix 4.4+ see also this https://github.com/v-zhuravlev/zbx_plugin_mqtt
+
 ## Setup with Wirenboard
 
 ### Zabbix server/proxy (externalscripts)
